@@ -11,7 +11,6 @@ import {
   Legend,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { forecast, anomalyDetection } from './nixtla';
 import * as Utils from './utils';
 import * as Data from './data';
 import { useRef } from 'react';
@@ -38,60 +37,45 @@ function Nav() {
   );
 }
 
-export const chartOpts = {
-  responsive: true,
-  plugins: {
-    legend: {
-      display: false,
-    },
-  },
+const nixtlaURL = 'http://app.nixtla.io';
+
+// Get token here: http://18.235.133.135:3000/login
+// Add token in .env (copy .env.example)
+const bearerToken = process.env.REACT_APP_NIXTLA_BEARER_TOKEN;
+const headers = {
+  'accept': 'application/json',
+  'authorization': `Bearer ${bearerToken}`,
+  'content-type': 'application/json',
 };
 
-const chartData = {
-  labels: Data.manningData.timestamp,
-  datasets: [
-    {
-      label: 'Manning',
-      data: Data.manningData.value,
-      borderColor: 'rgb(255, 99, 132)',
-      backgroundColor: 'rgba(255, 99, 132, 0.5)',
-      pointRadius: [],
-      pointBackgroundColor: 'yellow',
-      elements: {
-        point: {
-          radius: 0
-        }
-      },
-      segment: {
-        borderColor: ctx => {
-          const idx = ctx.p0DataIndex;
-          if (idx >= Data.manningData.timestamp.length) {
-            return 'blue';
-          }
-        },
-        borderDash: ctx => {
-          const idx = ctx.p0DataIndex;
-          if (idx >= Data.manningData.timestamp.length) {
-            return [6];
-          }
-        },
-      },
-    },
-  ],
-};
+async function forecast(data) {
 
-const parseNixtlaData = (nixtla) => {
-  const timestamp = nixtla['timestamp'].map(x => x.split(' ')[0]);
+	const options = {
+	  method: 'POST',
+	  headers: {
+		accept: 'application/json',
+		'content-type': 'application/json',
+		authorization: `Bearer ${bearerToken}` 
+	  },
+	  body: JSON.stringify({
+		fh: 12,
+		seasonality: 12,
+		cv: false,
+		timestamp: data.timestamp,
+		value: data.value,
+        model: 'arima'
+	  })
+	};
 
-  return {
-    timestamp: timestamp,
-    value: nixtla['value'],
-  };
-};
+	const response = await fetch('http://app.nixtla.io/forecast', options)
+	const responseData = await response.json();
+
+	return responseData
+}
 
 const makeForecast = async (data, chartRef) => {
   const fcast = await forecast(data);
-  const parsedData = parseNixtlaData(fcast);
+  const parsedData = Utils.parseResponse(fcast);
 
   const chart = chartRef.current;
   chart.data.labels = [...data.timestamp, ...parsedData.timestamp]
@@ -100,9 +84,34 @@ const makeForecast = async (data, chartRef) => {
   chart.update();
 };
 
+
+// Anomaly Detection
+async function anomalyDetection(data) {
+	const options = {
+	  method: 'POST',
+	  headers: {
+		accept: 'application/json',
+		'content-type': 'application/json',
+		authorization: `Bearer ${bearerToken}` 
+	  },
+	  body: JSON.stringify({
+		level: 90,
+		seasonality: 1,
+		timestamp: data.timestamp,
+		value: data.value, 
+		fh: 7
+	  })
+	};
+
+	const response = await fetch('http://app.nixtla.io/anomaly_detector', options)
+	const responseData = await response.json()
+
+	return responseData
+}
+
 const detectAnomalies = async (data, chartRef) => {
   const anomalies = await anomalyDetection(data);
-  const parsedData = parseNixtlaData(anomalies);
+  const parsedData = Utils.parseResponse(anomalies);
 
   // Search data by value. update it's point radius
   const chart = chartRef.current;
@@ -127,7 +136,7 @@ function App() {
         <Row className='mt-1'>
           <Col md={12}>
             <h2 className='text-center'>Forecasting and Anomaly Detection</h2>
-            <Line ref={chartRef} options={chartOpts} data={chartData} />
+            <Line ref={chartRef} options={Utils.chartOpts} data={Data.chartData} />
           </Col>
         </Row>
         <Row>

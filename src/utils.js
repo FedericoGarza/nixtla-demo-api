@@ -53,3 +53,22 @@ export function numbers(config) {
 }
 
 const valueOrDefault = (value, def) => value || def;
+
+export const chartOpts = {
+  responsive: true,
+  plugins: {
+    legend: {
+      display: false,
+    },
+  },
+};
+
+export const parseResponse = (nixtla) => {
+  console.log(nixtla)
+  const timestamp = nixtla['timestamp'].map(x => x.split(' ')[0]);
+
+  return {
+    timestamp: timestamp,
+    value: nixtla['value'],
+  };
+};
